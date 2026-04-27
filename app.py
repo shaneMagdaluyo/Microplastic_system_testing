@@ -1085,7 +1085,7 @@ def main():
                 st.error(f"Error during model training: {str(e)}")
                 st.info("💡 Tip: Try reducing the number of features or use a different target variable.")
     
-    # ==================== MODEL EVALUATION (FIXED - NO CRASH, NO LAG) ====================
+    # ==================== MODEL EVALUATION (WITH FORMATTED INSIGHTS) ====================
     elif section == "📊 Model Evaluation":
         st.markdown('<p class="section-header">📊 Model Evaluation</p>', unsafe_allow_html=True)
         
@@ -1104,8 +1104,6 @@ def main():
         
         st.success(f"✅ Found {len(models)} trained model(s)")
         
-        st.markdown("### 🎯 Model Performance Comparison")
-        
         with st.spinner('Evaluating models...'):
             evaluation_results = evaluate_models(models, X_test, y_test)
         
@@ -1116,9 +1114,45 @@ def main():
                     'Accuracy': results['accuracy'],
                     'F1 Score': results['f1_score']
                 }
-            
             metrics_df = pd.DataFrame(metrics_data).T
             
+            # ==================== FORMATTED EVALUATION SUMMARY ====================
+            st.markdown("---")
+            st.markdown("#### 📋 Model Evaluation Results")
+            
+            # Get target variable name
+            target_name = "Target"
+            if st.session_state.get('target_encoder') is not None:
+                try:
+                    target_name = "Risk_Type"
+                except:
+                    pass
+            
+            st.markdown(f"**From your evaluation for {target_name} prediction:**")
+            st.markdown("")
+            
+            # Display each model's F1 score
+            for name, results in evaluation_results.items():
+                f1 = results['f1_score']
+                st.markdown(f"**{name}:** F1-Score = **{f1:.4f}** (weighted average)")
+                st.markdown("")
+            
+            # Find best model
+            best_model_name = metrics_df['F1 Score'].idxmax()
+            best_f1 = metrics_df['F1 Score'].max()
+            
+            # Conclusion
+            st.markdown("---")
+            st.markdown(f"""
+            <div style="background: #d4edda; border: 2px solid #27ae60; border-radius: 10px; padding: 20px; margin: 15px 0;">
+                <p style="font-size: 1.1rem; margin: 0; color: #155724;">
+                    ✅ The <b>{best_model_name}</b> performed best for <b>{target_name}</b> prediction 
+                    with an F1-Score of <b>{best_f1:.4f}</b> (weighted average).
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # ==================== PERFORMANCE CHART ====================
             st.markdown("#### 📈 Performance Metrics Comparison")
             fig_metrics = px.bar(
                 metrics_df.reset_index(),
@@ -1132,6 +1166,7 @@ def main():
             fig_metrics.update_layout(height=400)
             st.plotly_chart(fig_metrics, use_container_width=True)
             
+            # ==================== COMPARISON TABLE ====================
             st.markdown("#### 📊 Detailed Metrics Table")
             col1, col2 = st.columns([3, 1])
             with col1:
@@ -1141,6 +1176,7 @@ def main():
                 st.metric("Accuracy", f"{metrics_df['Accuracy'].max():.3f}")
                 st.metric("F1 Score", f"{metrics_df['F1 Score'].max():.3f}")
             
+            # ==================== CONFUSION MATRIX ====================
             st.markdown("---")
             st.markdown("#### 📊 Confusion Matrices")
             
@@ -1187,6 +1223,7 @@ def main():
                             })
                         st.dataframe(pd.DataFrame(metrics_list))
             
+            # ==================== CLASSIFICATION REPORT ====================
             st.markdown("---")
             st.markdown("#### 📋 Detailed Classification Reports")
             
@@ -1201,33 +1238,22 @@ def main():
                     st.metric("Accuracy", f"{evaluation_results[model_for_report]['accuracy']:.3f}")
                     st.metric("F1 Score", f"{evaluation_results[model_for_report]['f1_score']:.3f}")
             
+            # ==================== FINAL SUMMARY TABLE ====================
             st.markdown("---")
-            best_model_name = metrics_df['F1 Score'].idxmax()
-            best_model = models[best_model_name]
+            st.markdown("#### 📊 Summary of Best F1 Scores")
             
-            st.session_state.best_model = {
-                'name': best_model_name,
-                'model': best_model,
-                'metrics': evaluation_results[best_model_name]
-            }
+            summary_data = []
+            for name, results in evaluation_results.items():
+                summary_data.append({
+                    'Model': name,
+                    'F1-Score (Weighted)': f"{results['f1_score']:.4f}",
+                    'Accuracy': f"{results['accuracy']:.4f}"
+                })
             
-            st.markdown(f"## 🏆 Best Performing Model: **{best_model_name}**")
+            summary_df = pd.DataFrame(summary_data)
+            st.dataframe(summary_df, use_container_width=True, hide_index=True)
             
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Accuracy", f"{evaluation_results[best_model_name]['accuracy']:.3f}")
-            with col2:
-                st.metric("F1 Score", f"{evaluation_results[best_model_name]['f1_score']:.3f}")
-            with col3:
-                st.metric("Rank", "#1")
-            
-            st.markdown("---")
-            st.markdown("### 📊 Model Ranking")
-            
-            ranked_models = metrics_df.sort_values('F1 Score', ascending=False)
-            for i, (model_name, row) in enumerate(ranked_models.iterrows(), 1):
-                medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else f"{i}."
-                st.write(f"{medal} **{model_name}**: Accuracy={row['Accuracy']:.3f}, F1={row['F1 Score']:.3f}")
+            st.success(f"🏆 **Conclusion:** The **{best_model_name}** performed best with F1-Score = **{best_f1:.4f}** (weighted average)")
         
         else:
             st.warning("⚠️ No evaluation results available.")
